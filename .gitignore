@@ -1,0 +1,17 @@
+﻿# dependencies
+node_modules/
+
+# angular build output
+dist/
+
+# angular/cache
+.angular/
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# optional
+.vscode/
+.DS_Store

@@ -1,0 +1,46 @@
+<div class="blog-container">
+  <h1>Mini Blog</h1>
+
+  <section class="form-section">
+    <h2>Publicar noticia</h2>
+    <form (ngSubmit)="addNews()" #frm="ngForm" novalidate>
+      <div class="field">
+        <label for="title">Título</label>
+        <input id="title" name="title" [(ngModel)]="newTitle" required />
+      </div>
+
+      <div class="field">
+        <label for="image">URL imagen</label>
+        <input id="image" name="image" [(ngModel)]="newImage" required />
+      </div>
+
+      <div class="field">
+        <label for="body">Texto</label>
+        <textarea id="body" name="body" [(ngModel)]="newBody" rows="4" required></textarea>
+      </div>
+
+      <div class="field">
+        <label for="date">Fecha publicación</label>
+        <input id="date" name="date" [(ngModel)]="newDate" type="date" required />
+      </div>
+
+      <div class="actions">
+        <button type="submit">Publicar</button>
+      </div>
+
+      <div class="error" *ngIf="errorMessage">{{ errorMessage }}</div>
+    </form>
+  </section>
+
+  <section class="list-section">
+    <h2>Listado de noticias</h2>
+    <div class="news-list">
+      <article class="news-item" *ngFor="let n of news">
+        <h3>{{ n.title }}</h3>
+        <img [src]="n.image" alt="imagen noticia" />
+        <p class="meta">{{ n.date | date:'mediumDate' }}</p>
+        <p>{{ n.body }}</p>
+      </article>
+    </div>
+  </section>
+</div>
