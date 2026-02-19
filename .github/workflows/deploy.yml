@@ -1,4 +1,4 @@
-Ôªøname: deploy-angular-vps
+name: Deploy Angular to VPS
 
 on:
   push:
@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: 1) Checkout
         uses: actions/checkout@v4
 
       - name: Setup Node
@@ -19,10 +19,10 @@ jobs:
           node-version: "20"
           cache: "npm"
 
-      - name: Install dependencies
+      - name: 2) Install dependencies
         run: npm ci
 
-      - name: Build Angular (production)
+      - name: 3) Build Angular (production)
         run: npx ng build --configuration production
 
       - name: Detect dist output
@@ -38,16 +38,20 @@ jobs:
 
           TARGET=""
 
-          # Angular moderno: dist/<app>/browser
-          TARGET="$(find dist -mindepth 2 -maxdepth 2 -type d -name browser | head -n 1 || true)"
+          if [ -d dist/browser ]; then
+            TARGET="dist/browser"
+          else
+            # Angular moderno: dist/<app>/browser
+            TARGET="$(find dist -mindepth 2 -maxdepth 2 -type d -name browser | head -n 1 || true)"
 
-          # Angular cl√°sico: dist/<app>
-          if [ -z "$TARGET" ]; then
-            TARGET="$(find dist -mindepth 1 -maxdepth 1 -type d | head -n 1 || true)"
+            # Angular cl·sico: dist/<app>
+            if [ -z "$TARGET" ]; then
+              TARGET="$(find dist -mindepth 1 -maxdepth 1 -type d | head -n 1 || true)"
+            fi
           fi
 
           if [ -z "$TARGET" ] || [ ! -f "$TARGET/index.html" ]; then
-            echo "ERROR: no se encontr√≥ salida v√°lida en dist (esperado dist/<app>/browser o dist/<app> con index.html)" >&2
+            echo "ERROR: no se encontrÛ salida v·lida en dist (esperado dist/browser, dist/<app>/browser o dist/<app> con index.html)" >&2
             echo "Contenido encontrado en dist:" >&2
             find dist -maxdepth 3 -type d >&2 || true
             exit 1
@@ -62,16 +66,36 @@ jobs:
           set -euo pipefail
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -p "${{ secrets.VPS_PORT }}" -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
-      - name: Deploy to VPS with rsync
+      - name: Pack build output
         shell: bash
         run: |
           set -euo pipefail
-          rsync -az --delete \
-            -e "ssh -p ${{ secrets.VPS_PORT }}" \
-            "${{ steps.detect-dist.outputs.path }}/" \
-            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.VPS_PATH }}/"
+          tar -czf build.tar.gz -C "${{ steps.detect-dist.outputs.path }}" .
+
+      - name: 4) Upload build package to VPS
+        shell: bash
+        run: |
+          set -euo pipefail
+          scp -P "${{ secrets.VPS_PORT }}" build.tar.gz \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/build.tar.gz"
+
+      - name: Publish in /var/www/html/examen + permissions + apache reload
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -p "${{ secrets.VPS_PORT }}" "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" << 'EOF'
+          set -euo pipefail
+          mkdir -p /var/www/html/examen
+          rm -rf /var/www/html/examen/*
+          tar -xzf /tmp/build.tar.gz -C /var/www/html/examen
+          chown -R www-data:www-data /var/www/html/examen
+          find /var/www/html/examen -type d -exec chmod 755 {} \;
+          find /var/www/html/examen -type f -exec chmod 644 {} \;
+          systemctl reload apache2
+          rm -f /tmp/build.tar.gz
+          EOF
